@@ -106,22 +106,6 @@ const Dashboard = () => {
     }
   };
 
-  // const login = async () => {
-  //   try {
-  //     const web3authProvider = await web3auth.connectTo(WALLET_ADAPTERS.OPENLOGIN, {
-  //       loginProvider: "google",
-  //     });
-  //     setProvider(web3authProvider);
-  //     if (web3auth.connected) {
-  //       setLoggedIn(true);
-  //       getUserInfo();
-  //     }
-  //   } catch (error) {
-  //     console.error(error);
-  //     setResult(error);
-  //   }
-  // };
-
   const getUserInfo = async () => {
     try {
       const user = await web3auth.getUserInfo();
