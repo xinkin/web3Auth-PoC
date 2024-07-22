@@ -1,11 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import {
-  CHAIN_NAMESPACES,
-  IProvider,
-  WEB3AUTH_NETWORK,
-  UX_MODE,
-} from "@web3auth/base";
+import { CHAIN_NAMESPACES, WEB3AUTH_NETWORK, UX_MODE } from "@web3auth/base";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
 import { Web3AuthNoModal } from "@web3auth/no-modal";
 import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
@@ -70,7 +65,6 @@ const openloginAdapter = new OpenloginAdapter({
 web3auth.configureAdapter(openloginAdapter);
 
 const Dashboard = () => {
-  const [provider, setProvider] = useState<IProvider | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [smartAccount, setSmartAccount] =
@@ -83,10 +77,7 @@ const Dashboard = () => {
     const init = async () => {
       try {
         await web3auth.init();
-        setProvider(web3auth.provider);
-        console.log("Provider: ", web3auth.provider);
         if (web3auth.connected) {
-          // await initializeSmartAccount();
           setLoggedIn(true);
           getUserInfo();
         }
@@ -118,8 +109,6 @@ const Dashboard = () => {
       const address = await smartWallet.getAccountAddress();
       setSmartAccount(smartWallet);
       setSmartAccountAddress(address);
-      console.log("Smart Account Address: ", address);
-      console.log("Smart Account: ", smartWallet);
     } catch (error) {
       console.error(error);
       setResult(error);
@@ -128,10 +117,9 @@ const Dashboard = () => {
 
   const loginWithGoogle = async () => {
     try {
-      const web3authProvider = await web3auth.connectTo("openlogin", {
+      await web3auth.connectTo("openlogin", {
         loginProvider: "google",
       });
-      setProvider(web3authProvider);
       if (web3auth.connected) {
         await initializeSmartAccount();
         setLoggedIn(true);
@@ -145,7 +133,7 @@ const Dashboard = () => {
 
   const loginWithEmailPasswordless = async () => {
     try {
-      const web3authProvider = await web3auth.connectTo("openlogin", {
+      await web3auth.connectTo("openlogin", {
         loginProvider: "emailpasswordless",
         extraLoginOptions: {
           domain: "https://dev-fab2qqercldmt2ge.us.auth0.com",
@@ -153,7 +141,6 @@ const Dashboard = () => {
           isVerifierIdCaseSensitive: false,
         },
       });
-      setProvider(web3authProvider);
       if (web3auth.connected) {
         await initializeSmartAccount();
         setLoggedIn(true);
@@ -178,7 +165,6 @@ const Dashboard = () => {
   const logout = async () => {
     try {
       await web3auth.logout();
-      setProvider(null);
       setLoggedIn(false);
       setResult("Logged out");
     } catch (error) {
@@ -201,11 +187,11 @@ const Dashboard = () => {
   };
 
   const getAccounts = async () => {
-    if (!provider) {
+    if (!web3auth.provider) {
       setResult("Provider not initialized");
       return;
     }
-    const web3 = new Web3(provider as any);
+    const web3 = new Web3(web3auth.provider as any);
     try {
       const address = await web3.eth.getAccounts();
       setResult(address);
@@ -216,14 +202,14 @@ const Dashboard = () => {
   };
 
   const getBalance = async () => {
-    if (!provider) {
+    if (!web3auth.provider) {
       setResult("Provider not initialized");
       return;
     }
-    const web3 = new Web3(provider as any);
+    const web3 = new Web3(web3auth.provider as any);
     try {
-      const address = (await web3.eth.getAccounts())[0];
-      const balance = await web3.eth.getBalance(address);
+      const address = smartAccountAddress;
+      const balance = await web3.eth.getBalance(address as string);
       setResult({ address, balance: balance.toString() });
     } catch (error) {
       console.error(error);
@@ -232,24 +218,14 @@ const Dashboard = () => {
   };
 
   const signMessage = async () => {
-    if (!provider) {
-      setResult("Provider not initialized");
+    if (!smartAccount) {
+      console.error("Smart Account not initialized");
       return;
     }
-    const web3 = new Web3(provider as any);
-    try {
-      const fromAddress = (await web3.eth.getAccounts())[0];
-      const originalMessage = "Hello Web3Auth on Base Sepolia";
-      const signedMessage = await web3.eth.personal.sign(
-        originalMessage,
-        fromAddress,
-        ""
-      );
-      setResult({ originalMessage, signedMessage });
-    } catch (error) {
-      console.error(error);
-      setResult(error);
-    }
+
+    const message = "Hello Base Sepolia";
+    const signature = await smartAccount.signMessage(message);
+    console.log("Signature", signature);
   };
 
   return (
@@ -278,7 +254,7 @@ const Dashboard = () => {
               onClick={getAccounts}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
             >
-              Get Accounts
+              Get Web3Auth EOA
             </button>
             <button
               onClick={getBalance}
