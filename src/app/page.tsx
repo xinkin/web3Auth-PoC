@@ -1,85 +1,29 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { CHAIN_NAMESPACES, WEB3AUTH_NETWORK, UX_MODE } from "@web3auth/base";
-import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
-import { Web3AuthNoModal } from "@web3auth/no-modal";
-import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
-import Web3 from "web3";
-import { ethers } from "ethers";
-import { baseSepolia } from "viem/chains";
 import {
-  createSmartAccountClient,
-  BiconomySmartAccountV2,
-} from "@biconomy/account";
-
-const clientId =
-  "BObtAARkbvruKWhE7-GCeR8mLhZDoLs30lLzolozZn4ECxNbOdfeMLCQbn6ciXuvVJSzFAAcv38xCCXHFOIJsIQ";
-
-const chainConfig = {
-  chainNamespace: CHAIN_NAMESPACES.EIP155,
-  chainId: "0x14a34", // Base Sepolia chain ID
-  rpcTarget: "https://sepolia.base.org",
-  displayName: "Base Sepolia Testnet",
-  blockExplorerUrl: "https://sepolia.basescan.org",
-  ticker: "ETH",
-  tickerName: "Ethereum",
-};
-
-const privateKeyProvider = new EthereumPrivateKeyProvider({
-  config: { chainConfig },
-});
-
-const web3auth = new Web3AuthNoModal({
-  clientId,
-  web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
-  privateKeyProvider,
-});
-
-const openloginAdapter = new OpenloginAdapter({
-  adapterSettings: {
-    uxMode: UX_MODE.POPUP,
-    redirectUrl: "http://localhost:3000",
-    whiteLabel: {
-      appName: "MVMNT Account Abstraction",
-      mode: "dark",
-      useLogoLoader: true,
-    },
-    loginConfig: {
-      google: {
-        verifier: "mvmnt-aa",
-        verifierSubIdentifier: "google-OAuth",
-        typeOfLogin: "google",
-        clientId:
-          "920416771295-je94tajna6tno55mj7218d1na4hujnqb.apps.googleusercontent.com",
-      },
-      emailpasswordless: {
-        verifier: "mvmnt-aa",
-        verifierSubIdentifier: "email-pl-auth0",
-        typeOfLogin: "jwt",
-        clientId: "kFe7frDBSHbO4vdbWTayIPamQ1BWshWr",
-      },
-    },
-  },
-  privateKeyProvider,
-});
-web3auth.configureAdapter(openloginAdapter);
+  initWeb3Auth,
+  loginWithGoogle,
+  loginWithEmailPasswordless,
+  getUserInfo,
+  logout,
+  getAccounts,
+  getBalance,
+  signMessage,
+  getSmartAccountInfo,
+} from "./web3Utils/smartAccUtils";
 
 const Dashboard = () => {
   const [loggedIn, setLoggedIn] = useState(false);
   const [result, setResult] = useState<any>(null);
-  const [smartAccount, setSmartAccount] =
-    useState<BiconomySmartAccountV2 | null>(null);
-  const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(
-    null
-  );
 
   useEffect(() => {
     const init = async () => {
       try {
-        await web3auth.init();
-        if (web3auth.connected) {
+        const connected = await initWeb3Auth();
+        if (connected) {
           setLoggedIn(true);
-          getUserInfo();
+          const userInfo = await getUserInfo();
+          setResult(userInfo);
         }
       } catch (error) {
         console.error(error);
@@ -89,41 +33,15 @@ const Dashboard = () => {
     init();
   }, []);
 
-  const initializeSmartAccount = async () => {
+  const handleLogin = async (loginMethod: "google" | "emailpasswordless") => {
     try {
-      const ethersProvider = new ethers.BrowserProvider(
-        web3auth.provider as any
-      );
-      const web3AuthSigner = await ethersProvider.getSigner();
-      const config = {
-        biconomyPaymasterApiKey:
-          "EegseJJl5.0761a753-58e6-4cc0-b69f-db099d9592d6",
-        bundlerUrl: `https://bundler.biconomy.io/api/v2/${baseSepolia.id}/nJPK7B3ru.dd7f7861-190d-41bd-af80-6877f74b8f44`,
-      };
-      const smartWallet = await createSmartAccountClient({
-        signer: web3AuthSigner,
-        biconomyPaymasterApiKey: config.biconomyPaymasterApiKey,
-        bundlerUrl: config.bundlerUrl,
-        rpcUrl: "https://sepolia.base.org",
-      });
-      const address = await smartWallet.getAccountAddress();
-      setSmartAccount(smartWallet);
-      setSmartAccountAddress(address);
-    } catch (error) {
-      console.error(error);
-      setResult(error);
-    }
-  };
-
-  const loginWithGoogle = async () => {
-    try {
-      await web3auth.connectTo("openlogin", {
-        loginProvider: "google",
-      });
-      if (web3auth.connected) {
-        await initializeSmartAccount();
+      const success = await (loginMethod === "google"
+        ? loginWithGoogle()
+        : loginWithEmailPasswordless());
+      if (success) {
         setLoggedIn(true);
-        getUserInfo();
+        const userInfo = await getUserInfo();
+        setResult(userInfo);
       }
     } catch (error) {
       console.error(error);
@@ -131,40 +49,9 @@ const Dashboard = () => {
     }
   };
 
-  const loginWithEmailPasswordless = async () => {
+  const handleLogout = async () => {
     try {
-      await web3auth.connectTo("openlogin", {
-        loginProvider: "emailpasswordless",
-        extraLoginOptions: {
-          domain: "https://dev-fab2qqercldmt2ge.us.auth0.com",
-          verifierIdField: "email",
-          isVerifierIdCaseSensitive: false,
-        },
-      });
-      if (web3auth.connected) {
-        await initializeSmartAccount();
-        setLoggedIn(true);
-        getUserInfo();
-      }
-    } catch (error) {
-      console.error(error);
-      setResult(error);
-    }
-  };
-
-  const getUserInfo = async () => {
-    try {
-      const user = await web3auth.getUserInfo();
-      setResult(user);
-    } catch (error) {
-      console.error(error);
-      setResult(error);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await web3auth.logout();
+      await logout();
       setLoggedIn(false);
       setResult("Logged out");
     } catch (error) {
@@ -173,59 +60,39 @@ const Dashboard = () => {
     }
   };
 
-  const getSmartAccount = async () => {
-    if (!smartAccount) {
-      setResult("Smart Account not initialized");
-      return;
-    }
+  const handleGetAccounts = async () => {
     try {
-      setResult({ address: smartAccountAddress });
+      const accounts = await getAccounts();
+      setResult(accounts);
     } catch (error) {
       console.error(error);
       setResult(error);
     }
   };
 
-  const getAccounts = async () => {
-    if (!web3auth.provider) {
-      setResult("Provider not initialized");
-      return;
-    }
-    const web3 = new Web3(web3auth.provider as any);
+  const handleGetBalance = async () => {
     try {
-      const address = await web3.eth.getAccounts();
-      setResult(address);
+      const balance = await getBalance();
+      setResult(balance);
     } catch (error) {
       console.error(error);
       setResult(error);
     }
   };
 
-  const getBalance = async () => {
-    if (!web3auth.provider) {
-      setResult("Provider not initialized");
-      return;
-    }
-    const web3 = new Web3(web3auth.provider as any);
+  const handleSignMessage = async () => {
     try {
-      const address = smartAccountAddress;
-      const balance = await web3.eth.getBalance(address as string);
-      setResult({ address, balance: balance.toString() });
+      const signature = await signMessage();
+      setResult({ message: "Hello Base Sepolia", signature });
     } catch (error) {
       console.error(error);
       setResult(error);
     }
   };
 
-  const signMessage = async () => {
-    if (!smartAccount) {
-      console.error("Smart Account not initialized");
-      return;
-    }
-
-    const message = "Hello Base Sepolia";
-    const signature = await smartAccount.signMessage(message);
-    console.log("Signature", signature);
+  const handleGetSmartAccount = () => {
+    const { smartAccountAddress } = getSmartAccountInfo();
+    setResult({ address: smartAccountAddress });
   };
 
   return (
@@ -236,13 +103,13 @@ const Dashboard = () => {
         {!loggedIn ? (
           <div className="space-y-4">
             <button
-              onClick={loginWithGoogle}
+              onClick={() => handleLogin("google")}
               className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
             >
               Login with Google
             </button>
             <button
-              onClick={loginWithEmailPasswordless}
+              onClick={() => handleLogin("emailpasswordless")}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
             >
               Login with Email Passwordless
@@ -251,37 +118,37 @@ const Dashboard = () => {
         ) : (
           <div className="space-y-4">
             <button
-              onClick={getAccounts}
+              onClick={handleGetAccounts}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
             >
               Get Web3Auth EOA
             </button>
             <button
-              onClick={getBalance}
+              onClick={handleGetBalance}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
             >
               Get Balance
             </button>
             <button
-              onClick={signMessage}
+              onClick={handleSignMessage}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
             >
               Sign Message
             </button>
             <button
-              onClick={getUserInfo}
+              onClick={() => getUserInfo().then(setResult)}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
             >
               Get User Info
             </button>
             <button
-              onClick={getSmartAccount}
+              onClick={handleGetSmartAccount}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
             >
               Get Smart Account Address
             </button>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
             >
               Logout
