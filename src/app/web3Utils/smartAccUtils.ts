@@ -9,6 +9,9 @@ import {
   createSmartAccountClient,
   BiconomySmartAccountV2,
 } from "@biconomy/account";
+// import { WalletServicesPlugin } from "@web3auth/wallet-services-plugin";
+import { useSmartAccountStore } from "./store";
+import { getPublicCompressed } from "@toruslabs/eccrypto";
 
 const clientId =
   "BObtAARkbvruKWhE7-GCeR8mLhZDoLs30lLzolozZn4ECxNbOdfeMLCQbn6ciXuvVJSzFAAcv38xCCXHFOIJsIQ";
@@ -33,9 +36,17 @@ const web3auth = new Web3AuthNoModal({
   privateKeyProvider,
 });
 
+// const walletServicesPlugin = new WalletServicesPlugin({
+//   wsEmbedOpts: {
+//     web3AuthClientId: clientId,
+//     web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
+//     modalZIndex: 99999,
+//   },
+// });
+
 const openloginAdapter = new OpenloginAdapter({
   adapterSettings: {
-    uxMode: UX_MODE.POPUP,
+    uxMode: UX_MODE.REDIRECT,
     redirectUrl: "http://localhost:3000",
     whiteLabel: {
       appName: "MVMNT Account Abstraction",
@@ -56,18 +67,55 @@ const openloginAdapter = new OpenloginAdapter({
         typeOfLogin: "jwt",
         clientId: "kFe7frDBSHbO4vdbWTayIPamQ1BWshWr",
       },
+      jwt: {
+        verifier: "mvmnt-aa", // name of the verifier created on Web3Auth Dashboard
+        verifierSubIdentifier: "custom-auth",
+        typeOfLogin: "jwt",
+        clientId: clientId, // Web3Auth Client ID
+      },
     },
   },
   privateKeyProvider,
 });
 web3auth.configureAdapter(openloginAdapter);
 
+const { setSmartAccount, setSmartAccountAddress } =
+  useSmartAccountStore.getState();
+
 let smartAccount: BiconomySmartAccountV2 | null = null;
 let smartAccountAddress: string | null = null;
 
+export const getAppPubKey = async () => {
+  if (!web3auth.provider) {
+    throw new Error("Web3Auth provider not initialized");
+  }
+
+  try {
+    // Request the private key from Web3Auth
+    const app_scoped_privkey = await web3auth.provider.request({
+      method: "eth_private_key",
+    });
+
+    // Ensure the private key is padded to 64 characters
+    const paddedPrivKey = (app_scoped_privkey as string).padStart(64, "0");
+
+    // Derive the public key from the private key
+    const app_pub_key = getPublicCompressed(
+      Buffer.from(paddedPrivKey, "hex")
+    ).toString("hex");
+
+    return app_pub_key;
+  } catch (error) {
+    console.error("Error getting app public key:", error);
+    throw error;
+  }
+};
+
 export const initWeb3Auth = async () => {
   try {
+    // web3auth.addPlugin(walletServicesPlugin);
     await web3auth.init();
+
     return web3auth.connected;
   } catch (error) {
     console.error(error);
@@ -76,6 +124,8 @@ export const initWeb3Auth = async () => {
 };
 
 export const initializeSmartAccount = async () => {
+  // const { setSmartAccount, setSmartAccountAddress } =
+  //   useSmartAccountStore.getState();
   try {
     const ethersProvider = new ethers.BrowserProvider(web3auth.provider as any);
     const web3AuthSigner = await ethersProvider.getSigner();
@@ -89,7 +139,9 @@ export const initializeSmartAccount = async () => {
       bundlerUrl: config.bundlerUrl,
       rpcUrl: "https://sepolia.base.org",
     });
+    setSmartAccount(smartAccount);
     smartAccountAddress = await smartAccount.getAccountAddress();
+    setSmartAccountAddress(smartAccountAddress);
     return { smartAccount, smartAccountAddress };
   } catch (error) {
     console.error(error);
@@ -101,6 +153,26 @@ export const loginWithGoogle = async () => {
   try {
     await web3auth.connectTo("openlogin", {
       loginProvider: "google",
+    });
+    if (web3auth.connected) {
+      await initializeSmartAccount();
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+};
+
+export const customLogin = async (id_token: string) => {
+  try {
+    await web3auth.connectTo("openlogin", {
+      loginProvider: "jwt",
+      extraLoginOptions: {
+        id_token: id_token,
+        verifierIdField: "email", // sub, email, or custom
+      },
     });
     if (web3auth.connected) {
       await initializeSmartAccount();
@@ -146,8 +218,8 @@ export const getUserInfo = async () => {
 export const logout = async () => {
   try {
     await web3auth.logout();
-    smartAccount = null;
-    smartAccountAddress = null;
+    setSmartAccount(null);
+    setSmartAccountAddress(null);
   } catch (error) {
     console.error(error);
     throw error;
@@ -193,6 +265,27 @@ export const signMessage = async () => {
     throw error;
   }
 };
+
+export const authenticateUser = async () => {
+  try {
+    const res = await web3auth.authenticateUser();
+    return res;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+};
+
+// export const OnRamp = async () => {
+//   try {
+//     if (web3auth.connected) {
+//       await walletServicesPlugin.showCheckout();
+//     }
+//   } catch (error) {
+//     console.error(error);
+//     // throw error;
+//   }
+// };
 
 export const getSmartAccountInfo = () => {
   return { smartAccountAddress };

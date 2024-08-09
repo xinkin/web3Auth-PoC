@@ -15,12 +15,14 @@
     "@web3auth/modal": "^8.10.2",
     "@web3auth/no-modal": "^8.10.2",
     "@web3auth/openlogin-adapter": "^8.8.0",
+    "@web3auth/wallet-services-plugin": "^8.10.2",
     "ethers": "^6.13.1",
     "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18",
     "react-toastify": "^10.0.5",
-    "web3": "^4.1.1"
+    "web3": "^4.1.1",
+    "zustand": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^20",
