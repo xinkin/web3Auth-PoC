@@ -3,6 +3,28 @@ import React, { useState } from 'react';
 import { useWeb3Auth } from './web3Utils/web3AuthProvider';
 import { useSmartAccountTransaction } from './web3Utils/newSmartTxn';
 import { usePayTransaction } from './web3Utils/PayTxn';
+import { useNewPayTransaction } from './web3Utils/newPayTxn';
+import { useVaultCreation } from './web3Utils/VaultCreation';
+import { useDonateTransaction } from './web3Utils/DonateTxn';
+import { newPayTransaction } from './web3Utils/payfunc';
+import { ethers } from 'ethers';
+import { transferFromIntegratedWallet } from './web3Utils/IntegratedWallet';
+
+const paymentInputParams = {
+  productId: 1,
+  price: '30000000000000',
+  adminShare: '30000000000000',
+  buyer: '0xdb5a2d5c54EbB6152a4abACC974FccC736C58e74',
+  buyerPoints: 7,
+  seller: '0x8982828Ed33DC8cAEeF166eF4aBCB6B46d74b12a',
+  sellerPoints: 7,
+  paymentId: 1,
+  token: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  donationAmount: '0',
+  nonProfitVault: '0x7e883715EcFF611C3417170B9b926A113748A305',
+  expiry: 2,
+  sign: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+};
 
 const Dashboard = () => {
   const {
@@ -13,19 +35,24 @@ const Dashboard = () => {
     authenticateUser,
     customLogin,
     getAppPubKey,
-    isLoading,
     isLoggedIn,
-    error,
-    isInitialized,
+    smartAccount,
   } = useWeb3Auth();
 
-  const { executeTransaction } = useSmartAccountTransaction();
-  const { onPay } = usePayTransaction();
+  // const { executeTransaction } = useSmartAccountTransaction();
+  // const { onDonate } = useDonateTransaction();
+  const { createNonProfitVault, setAdminVault } = useVaultCreation();
+  // const { onPay } = usePayTransaction();
+  const { onNewPay } = useNewPayTransaction();
 
   const [result, setResult] = useState<any>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showCustomLogin, setShowCustomLogin] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
+
+  const [isMetaMaskConnected, setIsMetaMaskConnected] = useState(false);
 
   // useEffect(() => {
   //   const init = async () => {
@@ -115,26 +142,6 @@ const Dashboard = () => {
   //   }
   // };
 
-  // const handleGetBalance = async () => {
-  //   try {
-  //     const balance = await getBalance();
-  //     setResult(balance);
-  //   } catch (error) {
-  //     console.error(error);
-  //     setResult(error);
-  //   }
-  // };
-
-  // const handleSignMessage = async () => {
-  //   try {
-  //     const signature = await signMessage();
-  //     setResult({ message: "Hello Base Sepolia", signature });
-  //   } catch (error) {
-  //     console.error(error);
-  //     setResult(error);
-  //   }
-  // };
-
   const handleGetSmartAccount = () => {
     const { smartAccountAddress } = getSmartAccountInfo();
     setResult({ address: smartAccountAddress });
@@ -156,11 +163,104 @@ const Dashboard = () => {
     }
   };
 
+  const handlePayment = async (isIntegratedWallet?: boolean) => {
+    setIsLoading(true);
+    setError(undefined);
+    console.log(isLoading);
+
+    try {
+      const result = await newPayTransaction(
+        smartAccount,
+        paymentInputParams,
+        isIntegratedWallet,
+      );
+      if (result.success) {
+        console.log('Payment successful', result);
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      console.error('Error in payment:', err);
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMetaMaskPayment = async () => {
+    try {
+      if (typeof (window as any).ethereum === 'undefined') {
+        throw new Error('MetaMask is not installed');
+      }
+      await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      setIsMetaMaskConnected(true);
+      console.log('Connected to MetaMask');
+
+      // Get the smart account address
+      const { smartAccountAddress } = getSmartAccountInfo();
+
+      // Calculate the amount to transfer (you may need to adjust this based on your requirements)
+      const amountToTransfer =
+        BigInt(paymentInputParams.adminShare) +
+        BigInt(paymentInputParams.donationAmount);
+
+      console.log('Amount to transfer:', amountToTransfer);
+      console.log('Smart account address:', smartAccountAddress);
+
+      // Transfer funds from MetaMask to smart account
+      const tx = await signer.sendTransaction({
+        to: smartAccountAddress,
+        value: BigInt(amountToTransfer),
+      });
+      await tx.wait();
+
+      console.log('Funds transferred to smart account');
+
+      // Now proceed with the smart account payment
+      await handlePayment();
+    } catch (err) {
+      console.error('Error in MetaMask payment:', err);
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleIntegratedWalletPayment = async () => {
+    const amountToTransfer =
+      BigInt(paymentInputParams.adminShare) +
+      BigInt(paymentInputParams.donationAmount);
+
+    const { smartAccountAddress } = getSmartAccountInfo();
+    try {
+      await transferFromIntegratedWallet(amountToTransfer, smartAccountAddress);
+      await handlePayment(true);
+    } catch (err) {
+      console.error('Error in integrated wallet payment:', err);
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-800 text-white flex flex-col items-center justify-center p-4">
       <h1 className="text-3xl font-bold mb-6">Web3Auth PoC on Base Sepolia</h1>
 
       <div className="w-full max-w-md mb-6">
+        {/* <div>
+          <button className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+            Route
+          </button>
+        </div> */}
         {!isLoggedIn ? (
           <div className="space-y-4">
             {!showCustomLogin ? (
@@ -217,12 +317,6 @@ const Dashboard = () => {
             >
               Get Web3Auth EOA
             </button> */}
-            {/* <button
-              onClick={handleSignMessage}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
-            >
-              Sign Message
-            </button> */}
             <button
               onClick={() => getUserInfo().then(setResult)}
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
@@ -235,23 +329,30 @@ const Dashboard = () => {
             >
               Get Smart Account Address
             </button>
+
             <button
-              onClick={handleAuthenticateUser}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
+              onClick={onNewPay}
+              className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded"
             >
-              Get Authenticated User
+              Pay Txn
             </button>
             <button
-              onClick={handleGetAppPubKey}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
+              onClick={createNonProfitVault}
+              className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded"
             >
-              Get App Pub Key
+              Create Non-Profit Vault
             </button>
             <button
-              onClick={onPay}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
+              onClick={() => handlePayment(false)}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded"
             >
-              Txn
+              {isLoading ? 'Processing...' : 'Make Payment (Stateless)'}
+            </button>
+            <button
+              onClick={handleIntegratedWalletPayment}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded"
+            >
+              Integrated Wallet Payment
             </button>
             <button
               onClick={handleLogout}
@@ -278,3 +379,5 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+//"failed with 45000000 gas: insufficient funds for gas * price + value: address 0xD14dc307f52442b6A36432AcA4520B7B07273325 have 2000443591506059574 want 3000000000000000000"

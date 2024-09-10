@@ -10,7 +10,6 @@ import {
   createSmartAccountClient,
   BiconomySmartAccountV2,
   createBundler,
-  Bundler,
 } from '@biconomy/account';
 import { getPublicCompressed } from '@toruslabs/eccrypto';
 
@@ -35,6 +34,9 @@ const web3authInstance = new Web3AuthNoModal({
   web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
   privateKeyProvider,
 });
+
+// make two web3auth instance
+// multiple web3auth instances can be created check
 
 const openloginAdapter = new OpenloginAdapter({
   adapterSettings: {
@@ -159,15 +161,14 @@ export const Web3AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const config = {
         biconomyPaymasterApiKey:
           'EegseJJl5.0761a753-58e6-4cc0-b69f-db099d9592d6',
-        // bundlerUrl: `https://bundler.biconomy.io/api/v2/84532/nJPK7B3ru.dd7f7861-190d-41bd-af80-6877f74b8f44`,
-        // bundlerUrl: bundlerAddress as any,
+        // bundlerUrl: `https://bundler.biconomy.io/api/v2/${baseSepolia.id}/nJPK7B3ru.dd7f7861-190d-41bd-af80-6877f74b8f44`,
       };
+
       const smartAccountInstance = await createSmartAccountClient({
         signer: web3AuthSigner,
         biconomyPaymasterApiKey: config.biconomyPaymasterApiKey,
         // bundlerUrl: config.bundlerUrl,
         bundler: bundlerAddress,
-        chainId: 84532,
         rpcUrl: 'https://rpc.ankr.com/base_sepolia',
       });
       setSmartAccount(smartAccountInstance);

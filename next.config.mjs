@@ -2,6 +2,10 @@
 const nextConfig = {
     reactStrictMode: true,
     transpilePackages: ['@web3auth/no-modal', '@web3auth/base', '@web3auth/ethereum-provider'],
+    env: {
+        BICONOMY_SDK_DEBUG: "true",
+        // DEBUG: "@biconomy*"
+    }
 }
 
 export default nextConfig;

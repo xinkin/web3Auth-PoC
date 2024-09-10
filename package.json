@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@biconomy/account": "^4.5.3",
+    "@uniswap/sdk-core": "^5.3.1",
+    "@uniswap/smart-order-router": "^3.46.0",
+    "@uniswap/v3-sdk": "^3.13.1",
     "@web3auth/base": "^8.8.0",
     "@web3auth/ethereum-provider": "^8.10.2",
     "@web3auth/modal": "^8.10.2",
